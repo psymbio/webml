@@ -17,7 +17,6 @@
             border: 2px solid black !important;
         }
     </style>
-    <script defer src="./matrix.js"></script>
     <h1>Logistic Regression</h1>
     <canvas id="datacanvas" width="400px" height="400px"></canvas>
     <form>
@@ -59,7 +58,6 @@
                 Y.push(1);
             }
             X = nj.array(X);
-
             // because we need the training examples stacked column-wise
             X = X.T;
             Y = nj.array(Y);
@@ -90,6 +88,8 @@
                 X.push([data_point.x, data_point.y]);
             }
             X = nj.array(X);
+            // because we need the training examples stacked column-wise
+            X = X.T;
             logistic_regression(X, Y);
         }
         function background_canvas() {
