@@ -4,14 +4,26 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://code.createjs.com/1.0.0/createjs.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.12.1.min.js"></script>
+    <script src="https://pagecdn.io/lib/mathjs/10.5.3/math.js" crossorigin="anonymous"  ></script>
     <title>ML on the Web</title>
     <style>
         body {
             font-family: "Arial";
+            max-width: 600px;
+            margin: auto;
         }
         h1 {
             font-size: "27px";
             font-weight: normal;
+        }
+        p {
+            margin: 0;
+            padding: 0;
+        }
+        form {
+            margin-top: 20px;
         }
         #datacanvas {
             border: 2px solid black !important;
@@ -20,41 +32,46 @@
     <h1>Logistic Regression</h1>
     <canvas id="datacanvas" width="400px" height="400px"></canvas>
     <form>
-        <p>Create Datapoints</p>        
-        <br><label for="class_a">Number of points in Class A (1 - 100):</label><br>
+        <p>Create Datapoints</p>
+        <br><label for="num_class_b_data_points">Number of points in Class A (1 - 100):</label><br>
         <input type="range" id="num_class_a_data_points" name="num_class_a_data_points" min="1" max="100">
-        <br><label for="class_b">Number of points in Class B (1 - 100):</label><br>
+        <br><label for="num_class_b_data_points">Number of points in Class B (1 - 100):</label><br>
         <input type="range" id="num_class_b_data_points" name="num_class_b_data_points" min="1" max="100">
+        <p>Choose Hyperparameters</p>
+        <br><label for="num_iterations">Number of iterations (10 - 1000):</label><br>
+        <input type="range" id="num_iterations" name="num_iterations" min="10" max="1000">
+        <br><label for="learning_rate">Learning Rate (0.000001 - 0.1):</label><br>
+        <input type="range" id="learning_rate" name="learning_rate" min="0.000001" max="0.1" step="0.000001">
     </form>
+    <div id="tester" style="width:600px;height:250px;"></div>
 </head>
 <body>
-
-    <script src="https://code.createjs.com/1.0.0/createjs.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/nicolaspanel/numjs@0.15.1/dist/numjs.min.js"></script>
-    <script src="https://pagecdn.io/lib/mathjs/10.5.3/math.js" crossorigin="anonymous"  ></script>
     <script>
         var canvas = document.getElementById("datacanvas");
         stage = new createjs.Stage("datacanvas");
-        var data_point_size = 7;
+        var data_point_size = 4;
         var num_class_a_data_points = document.getElementById("num_class_a_data_points").value;
         var num_class_b_data_points = document.getElementById("num_class_b_data_points").value;
+        var num_iterations = document.getElementById("num_iterations").value;
+        var learning_rate = document.getElementById("learning_rate").value;
         var X = [];
         var Y = [];
+        let ALL_COSTS = [];
         init();
         logistic_regression(X, Y);
-
+        
         function init() {
             background_canvas();
             for (let i = 0; i < num_class_a_data_points; i++){
                 let x = canvas.width/2 - (data_point_size * 2.5) + Math.random()*100;
-                let y = canvas.height/2 + Math.random()*100;
+                let y = canvas.height/2 - Math.random()*10 - 100;
                 addCircle(x, y, data_point_size, "red");
                 X.push([x, y]);
                 Y.push(0);
             }
             for (var i = 0; i < num_class_b_data_points; i++) {
                 let x = canvas.width/2 - (data_point_size * 2.5) - Math.random()*100;
-                let y = canvas.height/2 - Math.random()*100;
+                let y = canvas.height/2 + Math.random()*10;
                 addCircle(x, y, data_point_size, "green");
                 X.push([x, y]);
                 Y.push(1);
@@ -62,7 +79,9 @@
             X = math.matrix(X);
             // because we need the training examples stacked column-wise
             X = math.transpose(X);
-            Y = math.matrix(Y);
+            // reshape Y, extend dimension
+            Y = math.matrix(Y)
+            Y = math.reshape(Y, [1, -1]);
             stage.update();
         }
 
@@ -77,6 +96,7 @@
             circle.on("pressmove", drag);
             stage.addChild(circle);
         }
+        
         function drag(evt) {
             // target will be the container that the event listener was added to
             evt.target.x = evt.stageX;
@@ -94,34 +114,108 @@
             X = math.transpose(X);
             logistic_regression(X, Y);
         }
+        
         function background_canvas() {
             canvas.style.backgroundColor = "yellow";
         }
 
         // machine learning implementation
+        function print_shape(matrix, name = "matrix") {
+            console.log("Shape of", name, "is: ", math.size(matrix)._data);
+        }
         function sigmoid(z) {
             var numerator = math.exp(math.multiply(-1, z));
             var denominator = math.add(1, numerator);
             return math.dotDivide(numerator, denominator);
         }
+        
         function initialize_weights_and_biases(dim) {
             let w = math.zeros(dim._data[0], 1);
             let b = 0.0;
             return [w, b];
         }
+        
+        function cost_function(y_hat, y, m) {
+            console.log("y: ", y);
+            console.log("y_hat: ", y_hat);
+            let first_term = math.dotMultiply(y, math.log(y_hat));
+            console.log("first_term: ", first_term);
+            console.log("subtraction: ", math.subtract(1, y));
+            let second_term = math.dotMultiply(math.subtract(1, y), math.log(math.subtract(1, y_hat)));
+            console.log("second_term: ", second_term);
+            let add_first_second =  math.add(first_term, second_term);
+            // console.log("add_first_second: ", add_first_second);
+            let cost = -1/m * math.sum(add_first_second);
+            return cost;
+        }
+
+        function predict(A) {
+            Y_predictions = math.zeros(math.size(A)._data[0], math.size(A)._data[1]);
+            for (let i = 0; i < math.size(A)._data[1]; i++) {
+                if (A._data[0][i] >= 0.5) {
+                    Y_predictions._data[0][i] = 1 - Number.EPSILON;
+                } else {
+                    Y_predictions._data[0][i] = 0 + Number.EPSILON;
+                }
+            }
+            return Y_predictions;
+        }
+        
+        function propogate(w, b, X, Y, m) {
+            console.log("w: ", w, "b: ", b);
+            let z = math.multiply(math.transpose(w), X);
+            z = math.add(z, b);
+            let A = sigmoid(z);
+            let Y_predictions = predict(A);
+            // print_shape(Y_predictions, "Y_predictions");
+            let cost = cost_function(Y_predictions, Y, m);
+            cost = math.squeeze(cost);
+            console.log("cost is: ", cost);
+            let dw = math.multiply(1/m, math.multiply(X, math.transpose(math.subtract(A, Y))));
+            console.log("dw: ", dw);
+            let db = 1/m * math.sum(math.subtract(A, Y));
+            let grads = {
+                dw: dw,
+                db: db
+            }
+            return [grads, cost];
+        }
+        
+        function optimize(w, b, X, Y, m, learning_rate) {
+            for (let i = 0; i < num_iterations; i++) {
+                let [grads, cost] = propogate(w, b, X, Y, m);
+                w = math.subtract(w, math.multiply(learning_rate, grads.dw));
+                b = b - (learning_rate * grads.db);
+                ALL_COSTS.push(cost);
+            }
+            let params = {
+                w: w,
+                b: b
+            }
+            return [params];
+        }
+
         function logistic_regression(X, Y) {
             // standardize the dataset
-            X = math.divide(X, math.max(X));
-            console.log("X is standardized");
-            console.log("Shape of X it has", math.size(X)._data[0], "features and", math.size(X)._data[1], "examples.");
+            ALL_COSTS = [];
+            // let X_mean = math.mean(X, 0);
+            // X_mean = math.subtract(X, X_mean);
+            // X_sigma_square = math.multiply(1/m, math.pow(X_mean, 2));
+            // let X_std = math.divide(X_mean, X_sigma_square);
+            let X_std = math.divide(X, math.max(X));
+            console.log("X is normalized");
+            console.log("Shape of X it has", math.size(X_std)._data[0], "features and", math.size(X_std)._data[1], "examples.");
+            let m = math.size(X_std)._data[1];
+            print_shape(Y, "Y");
 
-            let [w, b] = initialize_weights_and_biases(math.size(X));
-            // console.log(math.size(X));
-            let z = math.multiply(math.transpose(w), X);
-            console.log("Shape of z: ", math.size(z));
-            z = math.add(z, b);
-            let y_hat = sigmoid(z);
-            console.log(y_hat);
+            let [w, b] = initialize_weights_and_biases(math.size(X_std));
+            let [params] = optimize(w, b, X_std, Y, m, learning_rate);
+            console.log(ALL_COSTS);
+            TESTER = document.getElementById('tester');
+            Plotly.newPlot( TESTER, [{
+            x: math.range(0, num_iterations),
+            y: ALL_COSTS}], {
+            margin: { t: 0 } } );
         }
     </script>
 <!--
